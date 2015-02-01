@@ -1,0 +1,41 @@
+# Build directories
+[Dd]ebug*/
+[Rr]elease*/
+
+# Log files
+*log_file.txt
+
+# Windows and Mac OS X Temp Cache Files
+[Tt]humbs.db
+*.DS_Store
+
+# Visual Studio files
+Meteor/Debug/
+Meteor/Release/
+obj/
+*.vcxproj
+*.filters
+*.user
+*.sdf
+*.opensdf
+*.sln
+*.sln.docstates
+*.suo
+*.tmp
+*.tmp_proj
+*.vsp
+*.psess
+
+# Visual C++ cache files
+ipch/
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+
+# CMake files
+Meteor.dir/
+CMakeFiles/
+*.cmake
+CMakeCache.txt
