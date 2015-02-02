@@ -7,7 +7,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include "windows.h"
+#include <Windows.h>
 
 #elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 #include <sys/types.h>
@@ -154,7 +154,7 @@ void save_text_file(const char* data, size_t size, const char* filePath, FileWri
 	{
 		unsigned char byteOrderMark[3] = { 0xEF, 0xBB, 0xBF };
 
-		fileWrote = WriteFile(file, byteOrderMark, ARRAYSIZE(byteOrderMark), &numBytesWritten, NULL);
+		fileWrote = WriteFile(file, byteOrderMark, sizeof(byteOrderMark) / sizeof(*byteOrderMark), &numBytesWritten, NULL);
 		if(fileWrote == FALSE || numBytesWritten == 0)
 		{
 			LOG_ISSUE("could not write BOM to file: %s", filePath);

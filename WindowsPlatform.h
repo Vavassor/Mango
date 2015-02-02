@@ -1,6 +1,9 @@
 #ifndef WINDOWS_PLATFORM_H
 #define WINDOWS_PLATFORM_H
 
+#define WINVER        0x0600
+#define _WIN32_WINNT  WINVER
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif

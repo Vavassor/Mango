@@ -78,10 +78,10 @@ LONG WINAPI unhandled_exception_filter(
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
-int WINAPI wWinMain(
+int WINAPI WinMain(
 	_In_ HINSTANCE instance,
 	_In_opt_ HINSTANCE previous_instance,
-	_In_ LPWSTR command_line,
+	_In_ LPSTR command_line,
 	_In_ int show_mode)
 {
 	UNREFERENCED_PARAMETER(previous_instance);

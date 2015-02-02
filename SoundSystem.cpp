@@ -1,6 +1,8 @@
 #include "SoundSystem.h"
 #include "WindowsError.h"
 
+#include <Ks.h>
+#include <KsMedia.h>
 #include <mmdeviceapi.h>
 #include <Audioclient.h>
 
@@ -27,7 +29,7 @@ namespace
 	enum ThreadMessage
 	{
 		First = WM_USER,
-		Terminate,
+		Quit,
 		Begin_Playback,
 		End_Playback,
 		Last,
@@ -121,67 +123,69 @@ DWORD WINAPI Thread_Start(
 	EXIT_ON_ERROR(result, "failed to create audio client");
 
 	// setup desired mix format
-	WORD num_channels = 2;
-	WORD bit_rate = sizeof(float) * 8;
-	DWORD sample_rate = 48000;
-	AUDCLNT_SHAREMODE share_mode = AUDCLNT_SHAREMODE_SHARED;
-
-	WORD bytes_per_frame = num_channels * (bit_rate / 8);
-
-	WAVEFORMATEXTENSIBLE desired_format = {};
-	desired_format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-	desired_format.Format.nChannels = num_channels;
-	desired_format.Format.nSamplesPerSec = sample_rate;
-	desired_format.Format.nAvgBytesPerSec = sample_rate * bytes_per_frame;
-	desired_format.Format.nBlockAlign = bytes_per_frame;
-	desired_format.Format.wBitsPerSample = bit_rate;
-	desired_format.Format.cbSize = sizeof(desired_format) - sizeof(WAVEFORMATEX);
-
-	desired_format.dwChannelMask = KSAUDIO_SPEAKER_STEREO;
-	desired_format.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-	desired_format.Samples.wValidBitsPerSample = bit_rate;
-
-	// Request the mix format
-
-	WAVEFORMATEX* closest_format = nullptr;
-	result = audio_client->IsFormatSupported(
-		share_mode,
-		reinterpret_cast<WAVEFORMATEX*>(&desired_format),
-		&closest_format);
-	EXIT_ON_ERROR(result, "can't get a compatible mix format");
-
-	// If the desired format is not supported, it will allocate and return the closest match
-	// —but if it IS supported, we have to allocate it ourselves and copy over the data
-	// (it has to be allocated on the heap some way or another because we are keeping a
-	// global copy called mix_format)
-	if(result == S_OK && closest_format == nullptr)
 	{
-		closest_format = static_cast<WAVEFORMATEX*>(CoTaskMemAlloc(sizeof(WAVEFORMATEXTENSIBLE)));
-		CopyMemory(closest_format, &desired_format, sizeof(WAVEFORMATEXTENSIBLE));
-	}
+		WORD num_channels = 2;
+		WORD bit_rate = sizeof(float) * 8;
+		DWORD sample_rate = 48000;
 
-	// check to see if the closest match has a sample type we can handle, otherwise there's an error
-	if(closest_format->wFormatTag == WAVE_FORMAT_PCM
-		|| closest_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE
-		&& reinterpret_cast<WAVEFORMATEXTENSIBLE*>(closest_format)->SubFormat == KSDATAFORMAT_SUBTYPE_PCM)
-	{
-		sample_type = SampleType::Integer;
+		WORD bytes_per_frame = num_channels * (bit_rate / 8);
+
+		WAVEFORMATEXTENSIBLE desired_format = {};
+		desired_format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		desired_format.Format.nChannels = num_channels;
+		desired_format.Format.nSamplesPerSec = sample_rate;
+		desired_format.Format.nAvgBytesPerSec = sample_rate * bytes_per_frame;
+		desired_format.Format.nBlockAlign = bytes_per_frame;
+		desired_format.Format.wBitsPerSample = bit_rate;
+		desired_format.Format.cbSize = sizeof(desired_format) - sizeof(WAVEFORMATEX);
+
+		desired_format.dwChannelMask = KSAUDIO_SPEAKER_STEREO;
+		desired_format.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+		desired_format.Samples.wValidBitsPerSample = bit_rate;
+
+		// Request the mix format
+		{
+			WAVEFORMATEX* closest_format = nullptr;
+			result = audio_client->IsFormatSupported(
+				AUDCLNT_SHAREMODE_SHARED,
+				reinterpret_cast<WAVEFORMATEX*>(&desired_format),
+				&closest_format);
+			EXIT_ON_ERROR(result, "can't get a compatible mix format");
+
+			// If the desired format is not supported, it will allocate and return the closest match
+			// Â—but if it IS supported, we have to allocate it ourselves and copy over the data
+			// (it has to be allocated on the heap some way or another because we are keeping a
+			// global copy called mix_format)
+			if(result == S_OK && closest_format == nullptr)
+			{
+				closest_format = static_cast<WAVEFORMATEX*>(CoTaskMemAlloc(sizeof(WAVEFORMATEXTENSIBLE)));
+				CopyMemory(closest_format, &desired_format, sizeof(WAVEFORMATEXTENSIBLE));
+			}
+
+			// check to see if the closest match has a sample type we can handle, otherwise there's an error
+			if(closest_format->wFormatTag == WAVE_FORMAT_PCM
+				|| closest_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE
+				&& reinterpret_cast<WAVEFORMATEXTENSIBLE*>(closest_format)->SubFormat == KSDATAFORMAT_SUBTYPE_PCM)
+			{
+				sample_type = SampleType::Integer;
+			}
+			else if(closest_format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT
+				|| closest_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE
+				&& reinterpret_cast<WAVEFORMATEXTENSIBLE*>(closest_format)->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)
+			{
+				sample_type = SampleType::IEEE_Float;
+			}
+			else
+			{
+				EXIT_ON_ERROR(result, "device mix format did not support any compatible sample types");
+			}
+			mix_format = closest_format;
+		}
 	}
-	else if(closest_format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT
-		|| closest_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE
-		&& reinterpret_cast<WAVEFORMATEXTENSIBLE*>(closest_format)->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)
-	{
-		sample_type = SampleType::IEEE_Float;
-	}
-	else
-	{
-		EXIT_ON_ERROR(result, "device mix format did not support any compatible sample types");
-	}
-	mix_format = closest_format;
 
 	// initialise settings for the audio client
 	result = audio_client->Initialize(
-		share_mode,
+		AUDCLNT_SHAREMODE_SHARED,
 		AUDCLNT_STREAMFLAGS_NOPERSIST | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
 		REFTIMES_PER_SECOND,
 		0, // periodicity must be zero in shared mode
@@ -196,9 +200,11 @@ DWORD WINAPI Thread_Start(
 	EXIT_ON_ERROR(result, "failed to get render client");
 
 	// Create an event handle and register it for buffer-event notifications.
-	HANDLE buffer_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-	result = audio_client->SetEventHandle(buffer_event);
-	EXIT_ON_ERROR(result, "failed to set buffer event handle");
+	{
+		buffer_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+		result = audio_client->SetEventHandle(buffer_event);
+		EXIT_ON_ERROR(result, "failed to set buffer event handle");
+	}
 
 	// get frame count from audio client
 	result = audio_client->GetBufferSize(&max_buffer_frames);
@@ -214,21 +220,24 @@ DWORD WINAPI Thread_Start(
 	EXIT_ON_ERROR(result, "failed to get device clock frequency");
 
 	// ask for device latency to use for synchronisation calculations
-	REFERENCE_TIME latency = 0;
-	result = audio_client->GetStreamLatency(&latency);
-	EXIT_ON_ERROR(result, "couldn't determine client stream latency");
+	{
+		REFERENCE_TIME latency = 0;
+		result = audio_client->GetStreamLatency(&latency);
+		EXIT_ON_ERROR(result, "couldn't determine client stream latency");
 
-	double seconds_of_latency = static_cast<double>(latency) / REFTIMES_PER_SECOND;
-	min_render_frames = static_cast<double>(mix_format->nSamplesPerSec) * seconds_of_latency;
+		double seconds_of_latency = static_cast<double>(latency) / REFTIMES_PER_SECOND;
+		min_render_frames = static_cast<double>(mix_format->nSamplesPerSec) * seconds_of_latency;
+	}
 
 	// Create a render buffer that's the same size as the client buffer.
 	// It'll be used to store intermediate data that is to be written to
 	// the render client every update
-
-	size_t bytes_per_sample = mix_format->wBitsPerSample / 8;
-	size_t frame_size_in_bytes = mix_format->nChannels * bytes_per_sample;
-	size_t max_buffer_size_in_bytes = frame_size_in_bytes * max_buffer_frames;
-	render_buffer = new BYTE[max_buffer_size_in_bytes];
+	{
+		size_t bytes_per_sample = mix_format->wBitsPerSample / 8;
+		size_t frame_size_in_bytes = mix_format->nChannels * bytes_per_sample;
+		size_t max_buffer_size_in_bytes = frame_size_in_bytes * max_buffer_frames;
+		render_buffer = new BYTE[max_buffer_size_in_bytes];
+	}
 
 cleanup:
 	SAFE_RELEASE(device);
@@ -266,7 +275,7 @@ loop:
 			switch(message_info.message)
 			{
 				case WM_QUIT:
-				case ThreadMessage::Terminate:
+				case ThreadMessage::Quit:
 					goto quit;
 
 				case ThreadMessage::Begin_Playback:
@@ -345,7 +354,7 @@ void Terminate()
 {
 	if(thread)
 	{
-		PostThreadMessage(thread_ID, ThreadMessage::Terminate, 0, 0);
+		PostThreadMessage(thread_ID, ThreadMessage::Quit, 0, 0);
 		WaitForSingleObject(thread, INFINITE);
 		CloseHandle(thread);
 		thread = NULL;
@@ -432,11 +441,10 @@ void Generate_Float_Sine_Samples(
 	}
 }
 
-static inline UINT32 least(UINT32 a, UINT32 b, UINT32 c)
+static inline UINT32 least(UINT32 a, UINT32 b)
 {
 	UINT32 m = a;
 	if(b < m) m = b;
-	if(c < m) m = c;
 	return m;
 }
 
@@ -451,8 +459,7 @@ void Update()
 	audio_client->GetCurrentPadding(&num_frames_padding);
 	UINT32 frames_available = max_buffer_frames - num_frames_padding;
 
-	UINT32 num_render_frames = 0;
-	num_render_frames = least(num_render_frames, min_render_frames, frames_available);
+	UINT32 num_render_frames = least(min_render_frames, frames_available);
 	
 	DWORD flags = 0;
 	WORD num_channels = mix_format->nChannels;

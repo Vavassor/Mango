@@ -15,21 +15,14 @@
 
 namespace RenderSystem {
 
-static union
-{
-	GLuint samplers[1];
-	struct
-	{
-		GLuint pixel_perfect;
-	};
-};
-
 namespace
 {
 	GLuint target_textures[1];
 	GLuint framebuffers[1];
 
 	GLuint default_shader;
+	GLuint samplers[1];
+	
 	struct ObjectBlock
 	{
 		GLfloat model_view_projection[16];
@@ -139,7 +132,9 @@ bool Initialise(int target_width, int target_height, int scale)
 	{
 		glGenSamplers(ARRAY_COUNT(samplers), samplers);
 
-		assert(pixel_perfect != 0);
+		assert(samplers[0] != 0);
+		
+		GLuint pixel_perfect = samplers[0];
 		glSamplerParameteri(pixel_perfect, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glSamplerParameteri(pixel_perfect, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glSamplerParameteri(pixel_perfect, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

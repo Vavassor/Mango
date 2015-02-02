@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cctype>
 #include <cmath>
+#include <climits>
 #include <cfloat>
 
 inline char* copy_string(const char* from, char* to)
@@ -192,11 +193,11 @@ void int_to_string(long long value, char* str, unsigned base)
 void float_to_string(double n, char* str, unsigned precision)
 {
 	// handle special cases
-	if(isnan(n))
+	if(std::isnan(n))
 	{
 		copy_string(NAN_TEXT, str);
 	}
-	else if(isinf(n))
+	else if(std::isinf(n))
 	{
 		copy_string(INFINITY_TEXT, str);
 	}
@@ -235,7 +236,7 @@ void float_to_string(double n, char* str, unsigned precision)
 		while(n > invPrecision || m >= 0)
 		{
 			double weight = pow(10.0, m);
-			if(weight > 0 && !isinf(weight))
+			if(weight > 0 && !std::isinf(weight))
 			{
 				int digit = floor(n / weight);
 				n -= digit * weight;
@@ -314,11 +315,11 @@ static void double_decompose(double n, SplitDouble* d)
 void float_to_hex_string(float n, char* str)
 {
 	// handle special cases
-	if(isnan(n))
+	if(std::isnan(n))
 	{
 		copy_string(NAN_TEXT, str);
 	}
-	else if(isinf(n))
+	else if(std::isinf(n))
 	{
 		copy_string(INFINITY_TEXT, str);
 	}
@@ -348,11 +349,11 @@ void float_to_hex_string(float n, char* str)
 void double_to_hex_string(double n, char* str)
 {
 	// handle special cases
-	if(isnan(n))
+	if(std::isnan(n))
 	{
 		copy_string(NAN_TEXT, str);
 	}
-	else if(isinf(n))
+	else if(std::isinf(n))
 	{
 		copy_string(INFINITY_TEXT, str);
 	}

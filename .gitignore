@@ -9,9 +9,14 @@
 [Tt]humbs.db
 *.DS_Store
 
+# Make files
+*.mk
+Makefile
+
+# Linker files
+Mango.txt
+
 # Visual Studio files
-Meteor/Debug/
-Meteor/Release/
 obj/
 *.vcxproj
 *.filters
@@ -34,8 +39,10 @@ ipch/
 *.sdf
 *.cachefile
 
-# CMake files
-Meteor.dir/
-CMakeFiles/
-*.cmake
-CMakeCache.txt
+# Clang files
+.clang/
+
+# Codelite files
+*.project
+*.workspace
+.codelite/
