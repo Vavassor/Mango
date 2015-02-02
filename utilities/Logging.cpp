@@ -60,7 +60,7 @@ static const char* log_level_name(Log::Level level)
 		case Log::Level::Info:  return "Info";
 		case Log::Level::Debug: return "Debug";
 	}
-	return '\0';
+	return "";
 }
 
 #define LOG_CASE(CASE_TYPE, ParamType, convert_function)\
