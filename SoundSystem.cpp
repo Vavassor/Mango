@@ -1,9 +1,9 @@
 #include "SoundSystem.h"
 #include "WindowsError.h"
 
+#include <mmdeviceapi.h>
 #include <Ks.h>
 #include <KsMedia.h>
-#include <mmdeviceapi.h>
 #include <Audioclient.h>
 
 #include <cmath>
