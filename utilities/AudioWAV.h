@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+namespace wave_audio {
+
 enum class WaveFormat
 {
 	Unknown,
@@ -22,10 +24,12 @@ struct WaveData
 	void* data;
 };
 
-bool load_WAV_file(const char* filename, WaveData& data);
-char* WAV_load_failure_reason();
+bool load_whole_file(const char* filename, WaveData& data);
+const char* load_failure_reason();
 
 void unload_wave_data(WaveData& data);
+
+} // namespace wave_audio
 
 #define AUDIO_WAV_H
 #endif

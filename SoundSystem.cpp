@@ -58,7 +58,7 @@ namespace
 	bool paused = true;
 	int pitch = 69;
 
-	WaveData bloop_wave = {};
+	wave_audio::WaveData bloop_wave = {};
 }
 
 void Thread_Quit();
@@ -241,12 +241,14 @@ DWORD WINAPI Thread_Start(
 		render_buffer = new BYTE[max_buffer_size_in_bytes];
 	}
 
-	bool bloop_loaded = load_WAV_file("Bloop.wav", bloop_wave);
-	if(!bloop_loaded)
 	{
-		char* failure_reason = WAV_load_failure_reason();
-		result = 0xA0000001; // arbitrary code signified as a "customer" error code HRESULT
-		EXIT_ON_ERROR(result, failure_reason);
+		bool bloop_loaded = wave_audio::load_whole_file("Bloop.wav", bloop_wave);
+		if(!bloop_loaded)
+		{
+			const char* failure_reason = wave_audio::load_failure_reason();
+			result = 0xA0000001; // arbitrary code signified as a "customer" error code HRESULT
+			EXIT_ON_ERROR(result, failure_reason);
+		}
 	}
 
 cleanup:
@@ -314,7 +316,7 @@ quit:
 
 void Thread_Quit()
 {
-	unload_wave_data(bloop_wave);
+	wave_audio::unload_wave_data(bloop_wave);
 
 	delete[] render_buffer;
 

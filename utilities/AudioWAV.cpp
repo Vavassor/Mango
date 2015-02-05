@@ -1,7 +1,10 @@
-﻿#include "AudioWAV.h"
+#include "AudioWAV.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
+
+namespace wave_audio {
 
 #define WAVE_FORMAT_LPCM       0x0001
 #define WAVE_FORMAT_IEEE_FLOAT 0x0003
@@ -27,9 +30,15 @@ DEFINE_WAVE_FORMAT_GUID(EXTENSION_GUID_IEEE_FLOAT_C, WAVE_FORMAT_IEEE_FLOAT);
 
 #define GUID_EQUALS(a, b) (!memcmp(&(a), &(b), sizeof(GUID)))
 
+#define ALLOCATE(byte_count) \
+	malloc(byte_count)
+	
+#define DEALLOCATE(pointer) \
+	free(pointer)
+
 namespace
 {
-	char* failure_reason = nullptr;
+	const char* failure_reason = nullptr;
 }
 
 static inline void concatenate(const char* input_a, const char* input_b, char* output)
@@ -84,7 +93,7 @@ static inline uint32_t pad_chunk_size(uint32_t x)
 	goto cleanup;                \
 }
 
-bool load_WAV_file(const char* filename, WaveData& wave)
+bool load_whole_file(const char* filename, WaveData& wave)
 {
 	bool result = true;
 	failure_reason = nullptr;
@@ -231,7 +240,11 @@ bool load_WAV_file(const char* filename, WaveData& wave)
 				{
 					//-----WAV Sample Data Chunk-----
 
-					wave.data = new uint8_t[chunk_size];
+					void* sample_data = ALLOCATE(chunk_size);
+					if(sample_data == nullptr)
+						FAILURE_TO_LOAD("could not allocate buffer large enough for sample data");
+					
+					wave.data = sample_data;
 
 					size_t data_bytes_read = fread(wave.data, sizeof(uint8_t), chunk_size, file);
 					if(data_bytes_read != chunk_size)
@@ -262,13 +275,15 @@ cleanup:
 	return result;
 }
 
-char* WAV_load_failure_reason()
+const char* load_failure_reason()
 {
 	return failure_reason;
 }
 
 void unload_wave_data(WaveData& wave)
 {
-	delete[] wave.data;
+	DEALLOCATE(wave.data);
 	memset(&wave, 0, sizeof wave);
 }
+
+} // namespace wave_audio
