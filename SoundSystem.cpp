@@ -1,6 +1,8 @@
 #include "SoundSystem.h"
 #include "WindowsError.h"
 
+#include "utilities/AudioWAV.h"
+
 #include <mmdeviceapi.h>
 #include <Ks.h>
 #include <KsMedia.h>
@@ -55,6 +57,8 @@ namespace
 
 	bool paused = true;
 	int pitch = 69;
+
+	WaveData bloop_wave = {};
 }
 
 void Thread_Quit();
@@ -200,11 +204,9 @@ DWORD WINAPI Thread_Start(
 	EXIT_ON_ERROR(result, "failed to get render client");
 
 	// Create an event handle and register it for buffer-event notifications.
-	{
-		buffer_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-		result = audio_client->SetEventHandle(buffer_event);
-		EXIT_ON_ERROR(result, "failed to set buffer event handle");
-	}
+	buffer_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	result = audio_client->SetEventHandle(buffer_event);
+	EXIT_ON_ERROR(result, "failed to set buffer event handle");
 
 	// get frame count from audio client
 	result = audio_client->GetBufferSize(&max_buffer_frames);
@@ -239,6 +241,14 @@ DWORD WINAPI Thread_Start(
 		render_buffer = new BYTE[max_buffer_size_in_bytes];
 	}
 
+	bool bloop_loaded = load_WAV_file("Bloop.wav", bloop_wave);
+	if(!bloop_loaded)
+	{
+		char* failure_reason = WAV_load_failure_reason();
+		result = 0xA0000001; // arbitrary code signified as a "customer" error code HRESULT
+		EXIT_ON_ERROR(result, failure_reason);
+	}
+
 cleanup:
 	SAFE_RELEASE(device);
 	SAFE_RELEASE(device_enumerator);
@@ -260,7 +270,6 @@ cleanup:
 	// thread initialisation completed!
 	send_response_message(request, S_OK);
 
-loop:
 	//------ MESSAGE LOOP ----------
 
 	for(;;)
@@ -305,6 +314,8 @@ quit:
 
 void Thread_Quit()
 {
+	unload_wave_data(bloop_wave);
+
 	delete[] render_buffer;
 
 	if(!paused && audio_client)

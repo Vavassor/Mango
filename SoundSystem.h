@@ -1,5 +1,4 @@
 #ifndef SOUND_SYSTEM_H
-#define SOUND_SYSTEM_H
 
 namespace SoundSystem {
 
@@ -10,4 +9,5 @@ void Stop();
 
 } // namespace SoundSystem
 
+#define SOUND_SYSTEM_H
 #endif

@@ -1,5 +1,4 @@
 #ifndef ARRAY_MACROS_H
-#define ARRAY_MACROS_H
 
 #include <cstring>
 
@@ -19,4 +18,5 @@
 #define CLEAR_ARRAY(pointer) \
 	CLEAR(pointer, ARRAY_COUNT(pointer))
 
+#define ARRAY_MACROS_H
 #endif

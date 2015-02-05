@@ -1,5 +1,4 @@
 #ifndef GAMEBOY_TYPES_H
-#define GAMEBOY_TYPES_H
 
 #include <cstdint>
 
@@ -12,4 +11,5 @@ typedef int       integer_t;
 typedef double    real_t;
 typedef double    complex_t;
 
+#define GAMEBOY_TYPES_H
 #endif
