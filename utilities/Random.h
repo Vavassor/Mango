@@ -1,5 +1,4 @@
 ﻿#ifndef RANDOM_H
-#define RANDOM_H
 
 namespace random {
 
@@ -8,4 +7,5 @@ int reap_integer(int min, int max);
 
 } // namespace random
 
+#define RANDOM_H
 #endif

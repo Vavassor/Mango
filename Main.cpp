@@ -9,12 +9,6 @@
 
 #include <cwchar>
 
-#if defined(NDEBUG)
-#define PRINT_TO_CONSOLE false
-#else
-#define PRINT_TO_CONSOLE true
-#endif
-
 #define W_(code) L ## code
 
 #define EXCEPTION_CASE(code) \
@@ -106,7 +100,7 @@ int WINAPI WinMain(
 	destroy_window();
 
 	// flush remaining log messages
-	Log::Output(PRINT_TO_CONSOLE);
+	Log::Output();
 
 	return main_return;
 }

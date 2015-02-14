@@ -22,6 +22,7 @@ struct WaveData
 	uint16_t bits_per_sample;
 
 	void* data;
+	uint32_t sample_count;
 };
 
 bool load_whole_file(const char* filename, WaveData& data);

@@ -1,5 +1,4 @@
 #ifndef STRING_H
-#define STRING_H
 
 #include <cstddef>
 
@@ -38,4 +37,5 @@ public:
 	const char* Data() const { return sequence; }
 };
 
+#define STRING_H
 #endif

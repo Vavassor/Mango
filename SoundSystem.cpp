@@ -39,7 +39,6 @@ namespace
 
 	IAudioClient* audio_client = nullptr;
 	IAudioRenderClient* render_client = nullptr;
-	IAudioClock* device_clock = nullptr;
 	WAVEFORMATEX* mix_format = nullptr;
 
 	HANDLE buffer_event = NULL;
@@ -50,21 +49,28 @@ namespace
 		IEEE_Float,
 	} sample_type;
 
-	UINT32 max_buffer_frames;
-	UINT64 clock_frequency;
+	UINT32 num_buffer_frames;
 	UINT32 min_render_frames;
 	BYTE* render_buffer = nullptr;
+	REFERENCE_TIME min_latency;
 
 	bool paused = true;
-	int pitch = 69;
 
-	wave_audio::WaveData bloop_wave = {};
+	struct Source
+	{
+		wave_audio::WaveData audio;
+		UINT32 read_position;
+		bool looping;
+		FLOAT volume;
+	};
+
+	Source bloop_source = {};
 }
 
 void Thread_Quit();
 void On_Begin_Playback();
 void On_End_Playback();
-void Update();
+void Buffer_Samples();
 
 #define SAFE_RELEASE(thing) \
 	if((thing) != nullptr) \
@@ -209,26 +215,20 @@ DWORD WINAPI Thread_Start(
 	EXIT_ON_ERROR(result, "failed to set buffer event handle");
 
 	// get frame count from audio client
-	result = audio_client->GetBufferSize(&max_buffer_frames);
+	result = audio_client->GetBufferSize(&num_buffer_frames);
 	EXIT_ON_ERROR(result, "couldn't obtain buffer frames count");
 
-	// get audio clock to monitor the stream and keep it synchronised
-	result = audio_client->GetService(
-		__uuidof(IAudioClock),
-		reinterpret_cast<void**>(&device_clock));
-	EXIT_ON_ERROR(result, "couldn't obtain audio clock for monitoring audio synchronisation");
-
-	result = device_clock->GetFrequency(&clock_frequency);
-	EXIT_ON_ERROR(result, "failed to get device clock frequency");
-
-	// ask for device latency to use for synchronisation calculations
+	// determine number of frames that must be rendered every update
 	{
+		REFERENCE_TIME device_period = 0;
+		result = audio_client->GetDevicePeriod(&device_period, nullptr);
+		EXIT_ON_ERROR(result, "couldn't retrieve update scheduling period");
+		min_render_frames = (device_period * mix_format->nSamplesPerSec + REFTIMES_PER_SECOND - 1) / REFTIMES_PER_SECOND;
+	
 		REFERENCE_TIME latency = 0;
 		result = audio_client->GetStreamLatency(&latency);
 		EXIT_ON_ERROR(result, "couldn't determine client stream latency");
-
-		double seconds_of_latency = static_cast<double>(latency) / REFTIMES_PER_SECOND;
-		min_render_frames = static_cast<double>(mix_format->nSamplesPerSec) * seconds_of_latency;
+		min_latency = latency + device_period;
 	}
 
 	// Create a render buffer that's the same size as the client buffer.
@@ -237,18 +237,22 @@ DWORD WINAPI Thread_Start(
 	{
 		size_t bytes_per_sample = mix_format->wBitsPerSample / 8;
 		size_t frame_size_in_bytes = mix_format->nChannels * bytes_per_sample;
-		size_t max_buffer_size_in_bytes = frame_size_in_bytes * max_buffer_frames;
+		size_t max_buffer_size_in_bytes = frame_size_in_bytes * num_buffer_frames;
 		render_buffer = new BYTE[max_buffer_size_in_bytes];
 	}
 
+	// load wave data for the test sound
 	{
-		bool bloop_loaded = wave_audio::load_whole_file("Bloop.wav", bloop_wave);
+		bool bloop_loaded = wave_audio::load_whole_file("Bloop.wav", bloop_source.audio);
 		if(!bloop_loaded)
 		{
 			const char* failure_reason = wave_audio::load_failure_reason();
 			result = 0xA0000001; // arbitrary code signified as a "customer" error code HRESULT
 			EXIT_ON_ERROR(result, failure_reason);
 		}
+
+		bloop_source.looping = true;
+		bloop_source.volume = 0.3;
 	}
 
 cleanup:
@@ -301,9 +305,7 @@ cleanup:
 
 		if(!paused)
 		{
-			DWORD wait_result = WaitForSingleObject(buffer_event, 1000);
-			if(wait_result == WAIT_OBJECT_0)
-				Update();
+			Buffer_Samples();
 		}
 	}
 
@@ -316,7 +318,7 @@ quit:
 
 void Thread_Quit()
 {
-	wave_audio::unload_wave_data(bloop_wave);
+	wave_audio::unload_wave_data(bloop_source.audio);
 
 	delete[] render_buffer;
 
@@ -333,7 +335,6 @@ void Thread_Quit()
 	CoTaskMemFree(mix_format);
 	SAFE_RELEASE(audio_client);
 	SAFE_RELEASE(render_client);
-	SAFE_RELEASE(device_clock);
 }
 
 bool Initialise()
@@ -346,7 +347,7 @@ bool Initialise()
 	request.finished_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	if(request.finished_event == NULL)
 	{
-		windows_error_message(0, "Failed to create event"); // TODO write a real error message
+		windows_error_message(GetLastError(), "couldn't create event to notify when thread initialisation completes");
 		return false;
 	}
 
@@ -454,29 +455,9 @@ void Generate_Float_Sine_Samples(
 	}
 }
 
-static inline UINT32 least(UINT32 a, UINT32 b)
+void Generate_Sine(int pitch, UINT32 num_render_frames)
 {
-	UINT32 m = a;
-	if(b < m) m = b;
-	return m;
-}
-
-void Update()
-{
-	/*
-	UINT64 device_position;
-	device_clock->GetPosition(&device_position, nullptr);
-	*/
-
-	UINT32 num_frames_padding;
-	audio_client->GetCurrentPadding(&num_frames_padding);
-	UINT32 frames_available = max_buffer_frames - num_frames_padding;
-
-	UINT32 num_render_frames = least(min_render_frames, frames_available);
-	
-	DWORD flags = 0;
 	WORD num_channels = mix_format->nChannels;
-	WORD bytes_per_sample = mix_format->wBitsPerSample / 8;
 
 	double frequency = 440.0 * pow(2.0, static_cast<double>(pitch - 69) / 12.0);
 	double amplitude = 0.3;
@@ -488,20 +469,92 @@ void Update()
 		case SampleType::IEEE_Float:
 		{
 			Generate_Float_Sine_Samples(frequency, amplitude, theta, num_render_frames, num_channels);
-			break;
-		}
+		} break;
+
 		case SampleType::Integer:
 		{
 			Generate_Integer_Sine_Samples(frequency, amplitude, theta, num_render_frames, num_channels);
-			break;
+		} break;
+	}
+}
+
+UINT32 Mix_Source(Source& source, UINT32 num_frames)
+{
+	WORD num_channels = mix_format->nChannels;
+	WORD bytes_per_sample = mix_format->wBitsPerSample / 8;
+
+	for(int i = 0; i < num_frames; ++i)
+	{
+		for(int j = 0; j < num_channels; ++j)
+		{
+			INT16* read_place = reinterpret_cast<INT16*>(source.audio.data);
+			INT16 factor = read_place[source.read_position++];
+
+			if(source.read_position >= source.audio.sample_count * source.audio.num_channels)
+			{
+				if(source.looping)
+					source.read_position = 0;
+				else
+					return i;
+			}
+
+			FLOAT pcm_value = static_cast<FLOAT>(factor) / 32767.0;
+			pcm_value *= source.volume;
+			BYTE* sample = reinterpret_cast<BYTE*>(&pcm_value);
+
+			for(int k = 0; k < bytes_per_sample; ++k)
+			{
+				render_buffer[i * num_channels * bytes_per_sample + j * bytes_per_sample + k] = sample[k];
+			}
 		}
 	}
-	
-	SIZE_T transfer_size = num_render_frames * num_channels * bytes_per_sample;
+
+	return num_frames;
+}
+
+void Buffer_Samples()
+{
+	HRESULT result = S_OK;
+
+	UINT32 num_render_frames = min_render_frames;
+	UINT32 frames_available = 0;
+
+	// Loop and wait until enough of the buffer is freed to write the samples.
+	// Note that this shouldn't loop at all unless the render client buffer is full
+	// and thus has no room to write to.
+	while(num_render_frames > frames_available)
+	{
+		DWORD wait_result = WaitForSingleObject(buffer_event, 1000);
+		if(wait_result == WAIT_OBJECT_0)
+		{
+			UINT32 num_frames_padding;
+			result = audio_client->GetCurrentPadding(&num_frames_padding);
+			EXIT_ON_ERROR(result, "couldn't determine padding for audio render client buffer");
+			frames_available = num_buffer_frames - num_frames_padding;
+		}
+		else
+		{
+			EXIT_ON_ERROR(wait_result, "audio client callback didn't ever get signaled");
+		}
+	}
+
+	UINT32 frames_mixed = Mix_Source(bloop_source, num_render_frames);
+
 	BYTE* data = nullptr;
-	render_client->GetBuffer(num_render_frames, &data);
+	result = render_client->GetBuffer(frames_mixed, &data);
+	EXIT_ON_ERROR(result, "failed to get packet to buffer audio data");
+	
+	WORD num_channels = mix_format->nChannels;
+	WORD bytes_per_sample = mix_format->wBitsPerSample / 8;
+	SIZE_T transfer_size = frames_mixed * num_channels * bytes_per_sample;
 	CopyMemory(data, render_buffer, transfer_size);
-	render_client->ReleaseBuffer(num_render_frames, flags);
+
+	DWORD flags = frames_mixed > 0 ? 0 : AUDCLNT_BUFFERFLAGS_SILENT;
+	result = render_client->ReleaseBuffer(frames_mixed, flags);
+	EXIT_ON_ERROR(result, "failed release audio buffer packet");
+
+cleanup:
+	return;
 }
 
 } // namespace SoundSystem

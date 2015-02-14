@@ -177,8 +177,8 @@ bool load_whole_file(const char* filename, WaveData& wave)
 								if(extension_size > 0)
 									fseek(file, extension_size, SEEK_CUR);
 							}
-							break;
-						}
+						} break;
+
 						case WAVE_FORMAT_IEEE_FLOAT:
 						{
 							wave.format = WaveFormat::LPCM_IEEE_Float;
@@ -188,9 +188,8 @@ bool load_whole_file(const char* filename, WaveData& wave)
 							uint16_t extension_size = extract_word(file);
 							if(extension_size > 0)
 								fseek(file, extension_size, SEEK_CUR);
+						} break;
 
-							break;
-						}
 						case WAVE_FORMAT_EXTENSIBLE:
 						{
 							uint16_t extension_size = extract_word(file);
@@ -216,12 +215,12 @@ bool load_whole_file(const char* filename, WaveData& wave)
 							{
 								FAILURE_TO_LOAD("wave format extension subtype not recognised");
 							}
-							break;
-						}
+						} break;
+
 						default:
 						{
 							FAILURE_TO_LOAD("wave format not recognised");
-						}
+						} break;
 					}
 
 					if(ferror(file))
@@ -231,7 +230,7 @@ bool load_whole_file(const char* filename, WaveData& wave)
 				{
 					//-----WAV Fact Chunk-----
 
-					uint32_t sample_count = extract_integer(file);
+					wave.sample_count = extract_integer(file);
 
 					if(ferror(file))
 						FAILURE_TO_LOAD("corruption encountered in WAVE fact chunk");
@@ -239,6 +238,9 @@ bool load_whole_file(const char* filename, WaveData& wave)
 				else if(tag_equals("data", tag))
 				{
 					//-----WAV Sample Data Chunk-----
+
+					if(wave.sample_count == 0)
+						wave.sample_count = chunk_size / (wave.num_channels * wave.bits_per_sample / 8);
 
 					void* sample_data = ALLOCATE(chunk_size);
 					if(sample_data == nullptr)

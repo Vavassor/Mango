@@ -9,7 +9,6 @@ typedef uint32_t  fixed_t;
 typedef unsigned  natural_t;
 typedef int       integer_t;
 typedef double    real_t;
-typedef double    complex_t;
 
 #define GAMEBOY_TYPES_H
 #endif

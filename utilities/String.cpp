@@ -1,20 +1,10 @@
 #include "String.h"
 
-inline size_t string_size(const char* s)
+static inline size_t string_size(const char* s)
 {
 	const char* start = s;
 	while(*s++);
 	return s - start - 1;
-}
-
-inline int compare_strings(const char* a, const char* b)
-{
-	for(; *a == *b; ++a, ++b)
-	{
-		if(*a == '\0')
-			return 0;
-	}
-	return *(const unsigned char*)a - *(const unsigned char*)b;
 }
 
 String::String():
@@ -72,7 +62,13 @@ String& String::operator = (const char* s)
 
 bool String::Equals(const String& other) const
 {
-	return compare_strings(sequence, other.sequence) == 0;
+	if(size != other.size) return false;
+	for(size_t i = 0; i < size; ++i)
+	{
+		if(sequence[i] != other.sequence[i])
+			return false;
+	}
+	return true;
 }
 
 void String::Append(const char* s, size_t n)
@@ -99,29 +95,29 @@ void String::Append(const String& other)
 	Append(other.sequence, other.size);
 }
 
-void String::Reserve(size_t newSize)
+void String::Reserve(size_t requested_capacity)
 {
-	if(newSize <= capacity) return;
+	if(requested_capacity <= capacity) return;
 
 	// create new, resized buffer
-	size_t newCapacity = newSize | 0xF;
-	if(capacity / 2 > newCapacity / 3)
-		newCapacity = capacity + capacity / 2;
+	size_t new_capacity = requested_capacity | 0xF;
+	if(capacity / 2 > new_capacity / 3)
+		new_capacity = capacity + capacity / 2;
 
-	char* prevSequence = sequence;
-	sequence = new char[newCapacity + 1];
+	char* past_sequence = sequence;
+	sequence = new char[new_capacity + 1];
 
 	// copy over to new buffer and delete old
-	if(prevSequence != nullptr)
+	if(past_sequence != nullptr)
 	{
 		for(size_t i = 0; i < size; ++i)
-			sequence[i] = prevSequence[i];
+			sequence[i] = past_sequence[i];
 	}
-	delete[] prevSequence;
+	delete[] past_sequence;
 
 	// reset things to match new capacity
-	sequence[newCapacity] = '\0';
-	capacity = newCapacity;
+	sequence[new_capacity] = '\0';
+	capacity = new_capacity;
 }
 
 void String::Clear()

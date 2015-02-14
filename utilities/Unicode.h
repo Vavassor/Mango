@@ -1,5 +1,4 @@
 #ifndef UNICODE_H
-#define UNICODE_H
 
 #include <cstddef>
 #include <cstdint>
@@ -195,4 +194,5 @@ size_t utf16_to_utf8(const char16_t* str, char** data)
 	return bufferSize;
 }
 
+#define UNICODE_H
 #endif

@@ -251,12 +251,11 @@ void show_window(int show_mode)
 int message_loop()
 {
 	MSG msg = {};
-	bool quit = false;
-	while(!quit)
+	for(;;)
 	{
 		while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
-			if(msg.message == WM_QUIT) quit = true;
+			if(msg.message == WM_QUIT) goto quit;
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
@@ -285,7 +284,7 @@ int message_loop()
 
 		SwapBuffers(device_context);
 	}
-
+quit:
 	return msg.wParam;
 }
 
@@ -331,13 +330,12 @@ static LRESULT on_activate(WORD state)
 		case WA_CLICKACTIVE:
 		{
 			paused = false;
-			break;
-		}
+		} break;
+
 		case WA_INACTIVE:
 		{
 			paused = true;
-			break;
-		}
+		} break;
 	}
 
 	return 0;

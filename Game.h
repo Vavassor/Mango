@@ -1,5 +1,4 @@
 #ifndef GAME_H
-#define GAME_H
 
 #include "Tilemap.h"
 #include "Sprite.h"
@@ -21,4 +20,5 @@ GameState Update(byte_t input_state, double delta_time);
 
 } // namespace Game
 
+#define GAME_H
 #endif

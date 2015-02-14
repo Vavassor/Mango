@@ -1,64 +1,73 @@
 #include "Logging.h"
 
 #include "String.h"
-#include "FileHandling.h"
 #include "Conversion.h"
 
-#if defined(_MSC_VER) && defined(_WIN32)
+#if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
 #endif
 
-#include <time.h>
-#include <stdarg.h>
+#include <cstdio>
+#include <ctime>
+#include <cstdarg>
 
 #define LOG_FILE_NAME "log_file.txt"
 
-namespace Log
+namespace Log {
+
+namespace
 {
 	String stream;
 	long ticks;
 }
 
-void Log::Clear_File()
+void Clear_File()
 {
-	clear_file(LOG_FILE_NAME);
+	std::FILE* file = std::fopen(LOG_FILE_NAME, "w");
+	if(file) std::fclose(file);
 }
 
-void Log::Inc_Time()
+void Inc_Time()
 {
 	ticks++;
 }
 
-void Log::Output(bool printToConsole)
+void Output()
 {
 	if(stream.Size() == 0) return;
 
-	#if defined(_DEBUG)
-	if(printToConsole)
-	{
-		#if defined(_MSC_VER) && defined(_WIN32)
-			OutputDebugStringA(stream.Data());
+	const char* text = stream.Data();
+	size_t byte_count = stream.Size();
+
+	#if !defined(NDEBUG)
+		#if defined(_WIN32)
+			if(IsDebuggerPresent())
+				OutputDebugStringA(text);
 		#else
-			printf("Log-%s", stream.Data());
+			printf("Log-%.*s", byte_count, text);
 		#endif
-	}
 	#endif
 
-	save_text_file(stream.Data(), stream.Size(), LOG_FILE_NAME, FILE_MODE_APPEND);
+	std::FILE* file = std::fopen(LOG_FILE_NAME, "a");
+	if(file)
+	{
+		std::fwrite(text, sizeof(char), byte_count, file);
+		std::fclose(file);
+	}
 
 	stream.Clear();
 }
 
-static const char* log_level_name(Log::Level level)
+static const char* log_level_name(Level level)
 {
 	switch(level)
 	{
-		case Log::Level::Error: return "Error";
-		case Log::Level::Info:  return "Info";
-		case Log::Level::Debug: return "Debug";
+		case Level::Error: return "Error";
+		case Level::Info:  return "Info";
+		case Level::Debug: return "Debug";
 	}
 	return "";
 }
@@ -68,16 +77,16 @@ static const char* log_level_name(Log::Level level)
 	{													\
 		ParamType param = va_arg(arguments, ParamType);	\
 		convert_function(param, str);					\
-		break;											\
-	}
+	} break;
 
-void Log::Add(Level level, const char* format, ...)
+void Add(Level level, const char* format, ...)
 {
-	// append log header to line
 	stream.Reserve(stream.Size() + 100);
 
-	time_t signature = time(nullptr);
-	tm* t = localtime(&signature);
+	// include timestamp before message
+
+	std::time_t signature = std::time(nullptr);
+	std::tm* t = std::localtime(&signature);
 
 	char timeStr[20];
 	int_to_string(t->tm_hour, timeStr);
@@ -96,10 +105,14 @@ void Log::Add(Level level, const char* format, ...)
 	stream.Append(timeStr);
 	stream.Append(" ");
 
+	// then add level type
 	stream.Append(log_level_name(level));
 	stream.Append(": ");
 
-	// write parameter data to log
+	// then on to the actual contents of the log message...
+
+	// first, set up parameter data and state machine variables
+
 	va_list arguments;
 	va_start(arguments, format);
 
@@ -123,7 +136,9 @@ void Log::Add(Level level, const char* format, ...)
 
 	char* s = (char*) format;
 	char* f = s;
-	while(*s)
+
+	// then, loop through the format string and write the parameter data as specified
+	for(; *s; ++s)
 	{
 		switch(mode)
 		{
@@ -140,8 +155,7 @@ void Log::Add(Level level, const char* format, ...)
 					mode = Mode::INSERT;
 					sizeType = ArgumentSize::MEDIAN;
 				}
-				break;
-			}
+			} break;
 
 			case Mode::INSERT:
 			{
@@ -211,8 +225,7 @@ void Log::Add(Level level, const char* format, ...)
 						{
 							double param = va_arg(arguments, double);
 							float_to_string(param, str);
-							break;
-						}
+						} break;
 					}
 					stream.Append(str);
 				}
@@ -225,25 +238,24 @@ void Log::Add(Level level, const char* format, ...)
 
 				f = s + 1;
 				mode = Mode::APPEND;
-
-				break;
-			}
+			} break;
 		}
-
-		++s;
 	}
 
 	va_end(arguments);
 
 	if(s != f)
 	{
+		// append last argument if needed
 		stream.Append(f, s);
 	}
 
 	stream.Append("\n");
 }
 
-const char* Log::Get_Text()
+const char* Get_Text()
 {
 	return stream.Data();
 }
+
+} // namespace Log

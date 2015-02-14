@@ -1,21 +1,21 @@
 #ifndef LOGGING_H
-#define LOGGING_H
 
-namespace Log
+namespace Log {
+
+enum class Level
 {
-	enum class Level
-	{
-		Error,
-		Info,
-		Debug,
-	};
+	Error,
+	Info,
+	Debug,
+};
 
-	void Clear_File();
-	void Inc_Time();
-	void Output(bool printToConsole = false);
-	void Add(Level level, const char* format, ...);
-	const char* Get_Text();
-}
+void Clear_File();
+void Inc_Time();
+void Output();
+void Add(Level level, const char* format, ...);
+const char* Get_Text();
+
+} // namespace Log
 
 #if defined(_DEBUG)
 #define DEBUG_LOG(format, ...) Log::Add(Log::Level::Debug, (format), ##__VA_ARGS__)
@@ -26,4 +26,5 @@ namespace Log
 #define LOG_ISSUE(format, ...) Log::Add(Log::Level::Error, (format), ##__VA_ARGS__)
 #define LOG_INFO(format, ...) Log::Add(Log::Level::Info, (format), ##__VA_ARGS__)
 
+#define LOGGING_H
 #endif
